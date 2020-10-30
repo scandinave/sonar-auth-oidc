@@ -29,6 +29,7 @@ import java.util.List;
 
 import javax.annotation.CheckForNull;
 
+import com.nimbusds.jose.JWSAlgorithm;
 import org.sonar.api.config.Configuration;
 import org.sonar.api.config.PropertyDefinition;
 import org.sonar.api.server.ServerSide;
@@ -44,6 +45,19 @@ public class OidcConfiguration {
   private static final String CLIENT_ID = "sonar.auth.oidc.clientId.secured";
   private static final String CLIENT_SECRET = "sonar.auth.oidc.clientSecret.secured";
   private static final String ALLOW_USERS_TO_SIGN_UP = "sonar.auth.oidc.allowUsersToSignUp";
+  private static final String JWS_ALGORiTHM = "sonar.auth.oidc.jwsAlgorithm";
+  private static final String JWS_ALGORiTHM_PS384 = "PS384";
+  private static final String JWS_ALGORiTHM_ES384 = "ES384";
+  private static final String JWS_ALGORiTHM_RS384 = "RS3284";
+  private static final String JWS_ALGORiTHM_HS256 = "HS256";
+  private static final String JWS_ALGORiTHM_HS512 = "HS512";
+  private static final String JWS_ALGORiTHM_ES256 = "ES256";
+  private static final String JWS_ALGORiTHM_RS256 = "RS256";
+  private static final String JWS_ALGORiTHM_HS384 = "HS384";
+  private static final String JWS_ALGORiTHM_ES512 = "ES512";
+  private static final String JWS_ALGORiTHM_PS256 = "PS256";
+  private static final String JWS_ALGORiTHM_PS512 = "PS512";
+  private static final String JWS_ALGORiTHM_RS512 = "RS512";
 
   private static final String SCOPES = "sonar.auth.oidc.scopes";
   private static final String SCOPES_DEFAULT_VALUE = "openid email profile";
@@ -90,6 +104,11 @@ public class OidcConfiguration {
   @CheckForNull
   public String clientId() {
     return config.get(CLIENT_ID).orElse(null);
+  }
+
+
+  public JWSAlgorithm JWSAlgorythm() {
+    return JWSAlgorithm.parse(config.get(JWS_ALGORiTHM).orElse("RS256"));
   }
 
   public String clientSecret() {
@@ -150,6 +169,13 @@ public class OidcConfiguration {
             .description("The shared secret of a non-public client. "
                 + "This is only needed for an OpenID Connect client with access type \"confidential\".")
             .category(CATEGORY).subCategory(SUBCATEGORY).type(STRING).index(index++).build(),
+        PropertyDefinition.builder(JWS_ALGORiTHM).name("JWS Algorithm")
+                .description(
+                        "Select the Algorithm used to sign tokens. Default to RS256.")
+                .category(CATEGORY).subCategory(SUBCATEGORY).type(SINGLE_SELECT_LIST).defaultValue("RS256")
+                .options(JWS_ALGORiTHM_PS256, JWS_ALGORiTHM_PS384, JWS_ALGORiTHM_PS512, JWS_ALGORiTHM_ES256, JWS_ALGORiTHM_ES384, JWS_ALGORiTHM_ES512,
+                        JWS_ALGORiTHM_RS256, JWS_ALGORiTHM_RS384, JWS_ALGORiTHM_RS512, JWS_ALGORiTHM_HS256, JWS_ALGORiTHM_HS384, JWS_ALGORiTHM_HS512)
+                .index(index++).build(),
         PropertyDefinition.builder(SCOPES).name("Scopes")
             .description("OAuth scopes ('openid' is required) to pass in the Open ID Connect authorize request.")
             .category(CATEGORY).subCategory(SUBCATEGORY).type(STRING).defaultValue(SCOPES_DEFAULT_VALUE).index(index++)
@@ -197,5 +223,4 @@ public class OidcConfiguration {
             .subCategory(SUBCATEGORY).type(STRING).defaultValue(LOGIN_BUTTON_TEXT_DEFAULT_VALUE).index(index).build());
 
   }
-
 }

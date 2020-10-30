@@ -18,11 +18,20 @@
 package org.vaulttec.sonarqube.auth.oidc;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 
 import javax.servlet.http.HttpServletRequest;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.proc.BadJOSEException;
+import com.nimbusds.jwt.JWT;
+import com.nimbusds.openid.connect.sdk.*;
+import com.nimbusds.openid.connect.sdk.claims.IDTokenClaimsSet;
+import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import org.sonar.api.server.ServerSide;
 import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
@@ -47,18 +56,7 @@ import com.nimbusds.oauth2.sdk.id.ClientID;
 import com.nimbusds.oauth2.sdk.id.Issuer;
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.oauth2.sdk.token.BearerAccessToken;
-import com.nimbusds.openid.connect.sdk.AuthenticationErrorResponse;
-import com.nimbusds.openid.connect.sdk.AuthenticationRequest;
 import com.nimbusds.openid.connect.sdk.AuthenticationRequest.Builder;
-import com.nimbusds.openid.connect.sdk.AuthenticationResponse;
-import com.nimbusds.openid.connect.sdk.AuthenticationResponseParser;
-import com.nimbusds.openid.connect.sdk.AuthenticationSuccessResponse;
-import com.nimbusds.openid.connect.sdk.OIDCTokenResponse;
-import com.nimbusds.openid.connect.sdk.OIDCTokenResponseParser;
-import com.nimbusds.openid.connect.sdk.UserInfoErrorResponse;
-import com.nimbusds.openid.connect.sdk.UserInfoRequest;
-import com.nimbusds.openid.connect.sdk.UserInfoResponse;
-import com.nimbusds.openid.connect.sdk.UserInfoSuccessResponse;
 import com.nimbusds.openid.connect.sdk.claims.UserInfo;
 import com.nimbusds.openid.connect.sdk.op.OIDCProviderMetadata;
 import com.nimbusds.openid.connect.sdk.token.OIDCTokens;
@@ -122,6 +120,15 @@ public class OidcClient {
 
     OIDCTokens oidcTokens = ((OIDCTokenResponse) tokenResponse).getOIDCTokens();
     UserInfo userInfo;
+
+    try {
+      this.validateIDToken(oidcTokens.getIDToken());
+    } catch (MalformedURLException e) {
+      throw new IllegalStateException("Well-known url incorrect", e);
+    } catch (BadJOSEException | JOSEException e) {
+      throw new IllegalStateException("ID Token invalid", e);
+    }
+
     try {
       userInfo = new UserInfo(oidcTokens.getIDToken().getJWTClaimsSet());
     } catch (java.text.ParseException e) {
@@ -199,6 +206,30 @@ public class OidcClient {
   private Secret getClientSecret() {
     String secret = config.clientSecret();
     return secret == null ? new Secret("") : new Secret(secret);
+  }
+
+  /**
+   * Validate the IdToken as describe in the OIDC spec
+   * @param idToken The token to validate
+   * @see <a href="</a>https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation">OIDC spec</a>
+   * @return
+   */
+  private IDTokenClaimsSet validateIDToken(JWT idToken) throws MalformedURLException, BadJOSEException, JOSEException {
+    // The required parameters
+    Issuer iss = new Issuer(config.issuerUri());
+    ClientID clientID = getClientId();
+    JWSAlgorithm jwsAlg = config.JWSAlgorythm();
+    IDTokenValidator validator;
+    if(jwsAlg.getName().matches("HS")) {
+      validator = new IDTokenValidator(iss, clientID, jwsAlg, getClientSecret());
+    } else {
+      URL jwkSetURL = getProviderMetadata().getJWKSetURI().toURL();
+      // Create validator for signed ID tokens
+      validator = new IDTokenValidator(iss, clientID, jwsAlg, jwkSetURL);
+    }
+
+    Nonce expectedNonce = new Nonce(null);
+    return validator.validate(idToken, expectedNonce);
   }
 
 }
